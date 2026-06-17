@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RadSIM NDT - Solid Rocket Motor Inspection Console</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tailwind/Lucide Icons (Vite-like setup via CDN for simplicity and pure client execution) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js for interactive attenuation & exposure curves -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-box">
+                    <span class="logo-text">RadSIM</span>
+                    <span class="logo-subtext">MATLAB v3.14</span>
+                </div>
+            </div>
+
+            <!-- Telemetry System Status -->
+            <div class="system-status-panel">
+                <div class="telemetry-header">SYSTEM READY</div>
+                <div class="telemetry-row">
+                    <span class="lbl">SOURCE STAT:</span>
+                    <span id="tel-source" class="val glow-green">ACTIVE</span>
+                </div>
+                <div class="telemetry-row">
+                    <span class="lbl">ENERGY LVL:</span>
+                    <span id="tel-energy" class="val text-orange">6.0 MeV</span>
+                </div>
+                <div class="telemetry-row">
+                    <span class="lbl">DOSERATE:</span>
+                    <span id="tel-doserate" class="val text-cyan">800 R/m</span>
+                </div>
+                <div class="telemetry-row">
+                    <span class="lbl">TEMP CORE:</span>
+                    <span class="val text-yellow">24.2 °C</span>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="nav-links">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard & Inputs</span>
+                </a>
+                <a href="#exposure" class="nav-item" data-tab="exposure">
+                    <i data-lucide="activity"></i>
+                    <span>Exposure Curves</span>
+                </a>
+                <a href="#simulator" class="nav-item" data-tab="simulator">
+                    <i data-lucide="aperture"></i>
+                    <span>Monte Carlo Simulator</span>
+                </a>
+                <a href="#ravana" class="nav-item" data-tab="ravana">
+                    <i data-lucide="layers"></i>
+                    <span>Ravana View</span>
+                </a>
+                <a href="#comparison" class="nav-item" data-tab="comparison">
+                    <i data-lucide="columns"></i>
+                    <span>Energy Comparison</span>
+                </a>
+                <a href="#database" class="nav-item" data-tab="database">
+                    <i data-lucide="database"></i>
+                    <span>Project Database</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="btn-emergency-stop" class="btn btn-danger btn-block">
+                    <i data-lucide="octagon-alert"></i> EMERGENCY SHUTDOWN
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Header bar -->
+            <header class="workspace-header">
+                <div class="title-section">
+                    <h1 id="page-title">Solid Rocket Motor (SRM) Inspection & Simulation</h1>
+                    <p class="subtitle" id="page-desc">System Parameter Inputs & Radiographic Machine Recommendations</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="btn-save-run-modal">
+                        <i data-lucide="save"></i> Save Simulation Run
+                    </button>
+                </div>
+            </header>
+
+            <!-- Workspace Modules -->
+            <div class="workspace-viewport">
+
+                <!-- Module 1 & 2: Dashboard & Input Panel -->
+                <section id="tab-dashboard" class="tab-panel active">
+                    <div class="grid grid-2-1">
+                        <!-- Inputs Panel -->
+                        <div class="card panel-card">
+                            <div class="card-header">
+                                <i data-lucide="sliders"></i>
+                                <h2>NDT Inspection Parameter Console</h2>
+                            </div>
+                            <div class="card-body">
+                                <form id="form-parameters">
+                                    <!-- Material presets -->
+                                    <div class="form-group">
+                                        <label for="materialType">Inspected Object Material</label>
+                                        <select id="materialType" name="materialType" class="form-control">
+                                            <option value="propellant">HTPB Propellant Preset (ρ=1.75, Z=7.4)</option>
+                                            <option value="steel">Carbon Steel Casing Preset (ρ=7.85, Z=26)</option>
+                                            <option value="aluminum">Aluminum Shell Preset (ρ=2.7, Z=13)</option>
+                                            <option value="cfrp">CFRP Composite Casing Preset (ρ=1.6, Z=6)</option>
+                                            <option value="lead">Lead Shielding Preset (ρ=11.34, Z=82)</option>
+                                            <option value="titanium">Titanium(ρ=4.51, Z=22)</option>
+                                            <option value="copper">Copper(ρ=8.96, Z=29)</option>
+                                            <option value="stainless">Stainless Steel(ρ= 7.95, Z=26)</option>
+                                            <option value="magnesium">Magnesium(ρ= 1.74, Z=12)</option>
+                                            <option value="brass">Brass(ρ=8.5, Z=30)</option>
+                                            <option value="custom">Fully Custom Material...</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Custom parameters hidden by default -->
+                                    <div id="custom-material-inputs" class="custom-panel hidden">
+                                        <div class="form-row">
+                                            <div class="form-group flex-1">
+                                                <label for="customDensity">Density (g/cm³)</label>
+                                                <input type="number" id="customDensity" name="customDensity" step="0.01" value="1.75" class="form-control">
+                                            </div>
+                                            <div class="form-group flex-1">
+                                                <label for="customZeff">Zeff (Effective Z)</label>
+                                                <input type="number" id="customZeff" name="customZeff" step="0.1" value="7.4" class="form-control">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Object size -->
+                                    <div class="form-group">
+                                        <div class="label-with-value">
+                                            <label for="thickness">Material Wall Thickness (mm)</label>
+                                            <input type="number" class="badge-value" id="val-thickness" min="1" max="1000" value="150">
+                                        </div>
+                                        <input type="range" id="thickness" name="thickness" min="1" max="1000" value="150" class="slider">
+                                    </div>
+
+                                    <!-- SFD -->
+                                    <div class="form-row">
+                                        <div class="form-group flex-1">
+                                            <div class="label-with-value">
+                                                <label for="sfd">SFD (Source-Film Dist, mm)</label>
+                                                <input type="number" class="badge-value" id="val-sfd" min="400" max="3000" step="50" value="1000">
+                                            </div>
+                                            <input type="range" id="sfd" name="sfd" min="400" max="3000" step="50" value="1000" class="slider">
+                                        </div>
+                                        <div class="form-group flex-1">
+                                            <div class="label-with-value">
+                                                <label for="sourceSize">Source focal spot size (mm)</label>
+                                                <input type="number" class="badge-value" id="val-sourceSize" min="0.1" max="6.0" step="0.1" value="2.0">
+                                            </div>
+                                            <input type="range" id="sourceSize" name="sourceSize" min="0.1" max="6.0" step="0.1" value="2.0" class="slider">
+                                        </div>
+                                    </div>
+
+                                    <!-- Filter and Detector presets -->
+                                    <div class="form-row">
+                                        <div class="form-group flex-1">
+                                            <label for="detectorType">Detector / Medium</label>
+                                            <select id="detectorType" name="detectorType" class="form-control">
+                                                <option value="dda100">DDA (100 µm pixels) - Active</option>
+                                                <option value="dda50">High-Res DDA (50 µm pixels)</option>
+                                                <option value="dda200">Coarse DDA (200 µm pixels)</option>
+                                                <option value="film1">Film: Class I (Ultra-Fine Grain)</option>
+                                                <option value="film2">Film: Class II (Fine Grain)</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group flex-1">
+                                            <label for="filterMaterial">Spectral Filter</label>
+                                            <select id="filterMaterial" name="filterMaterial" class="form-control">
+                                                <option value="none">None</option>
+                                                <option value="steel">Carbon Steel</option>
+                                                <option value="aluminum">Aluminum</option>
+                                                <option value="lead">Lead Shielding</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Filter thickness -->
+                                    <div class="form-group" id="filter-thickness-container">
+                                        <div class="label-with-value">
+                                            <label for="filterThickness">Filter Thickness (mm)</label>
+                                            <input type="number" class="badge-value" id="val-filterThickness" min="0" max="20" step="0.5" value="0">
+                                        </div>
+                                        <input type="range" id="filterThickness" name="filterThickness" min="0" max="20" step="0.5" value="0" class="slider">
+                                    </div>
+
+                                    <div class="divider"></div>
+
+                                    <!-- Machine Selection energy mode -->
+                                    <div class="form-group">
+                                        <label>Energy Class / Radiation Source</label>
+                                        <div class="btn-group-toggle">
+                                            <label class="btn-toggle-label">
+                                                <input type="radio" name="energy" value="450keV">
+                                                <span>450 keV X-Ray</span>
+                                            </label>
+                                            <label class="btn-toggle-label active">
+                                                <input type="radio" name="energy" value="6MeV" checked>
+                                                <span>6 MeV LINAC</span>
+                                            </label>
+                                            <label class="btn-toggle-label">
+                                                <input type="radio" name="energy" value="9MeV">
+                                                <span>9 MeV LINAC</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- kV/mA (450 keV Xray only) or LINAC parameters -->
+                                    <div class="form-row" id="xray-kv-ma-params">
+                                        <div class="form-group flex-1">
+                                            <div class="label-with-value">
+                                                <label for="kv">Tube Potential (kV)</label>
+                                                <input type="number" class="badge-value" id="val-kv" min="50" max="450" step="10" value="450">
+                                            </div>
+                                            <input type="range" id="kv" name="kv" min="50" max="450" step="10" value="450" class="slider" disabled>
+                                        </div>
+                                        <div class="form-group flex-1">
+                                            <div class="label-with-value">
+                                                <label for="ma">Tube Current (mA)</label>
+                                                <input type="number" class="badge-value" id="val-ma" min="0.5" max="20" step="0.5" value="10">
+                                            </div>
+                                            <input type="range" id="ma" name="ma" min="0.5" max="20" step="0.5" value="10" class="slider" disabled>
+                                        </div>
+                                    </div>
+
+                                    <div class="form-row">
+                                        <div class="form-group flex-1">
+                                            <div class="label-with-value">
+                                                <label for="exposureTime">Exposure Time (sec)</label>
+                                                <input type="number" class="badge-value" id="val-exposureTime" min="5" max="600" step="5" value="120">
+                                            </div>
+                                            <input type="range" id="exposureTime" name="exposureTime" min="5" max="600" step="5" value="120" class="slider">
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Recommendations Engine -->
+                        <div class="card recommendation-card">
+                            <div class="card-header">
+                                <i data-lucide="cpu"></i>
+                                <h2>Radiographic Machine Selection Engine</h2>
+                            </div>
+                            <div class="card-body flex-col justify-between">
+                                <!-- Top Recommended Machine -->
+                                <div class="recommendation-hero" id="rec-hero-card">
+                                    <div class="rec-title">RECOMMENDED CONFIGURATION</div>
+                                    <div class="rec-machine-name" id="rec-machine-name">6 MeV LINAC System</div>
+                                    <div class="rec-portability" id="rec-machine-portability">Class: Fixed Bunker Installation</div>
+                                    <p class="rec-description" id="rec-machine-advice">
+                                        The object thickness exceeds the effective penetration range of 450 keV X-rays. A megavolt LINAC is required to achieve sufficient detector dose rates and reduce scattering wash-out, while maintaining a smaller focal spot size than the 9 MeV unit.
+                                    </p>
+                                    <div class="divider" style="margin: 10px 0; border-color: rgba(255,255,255,0.1);"></div>
+                                    <div class="rec-title">RECOMMENDED IMAGING MEDIUM</div>
+                                    <div class="rec-detector-name" id="rec-detector-name" style="font-size: 1.1rem; font-weight: bold; color: var(--accent-orange); margin-top: 2px;">DDA (100 µm pixels)</div>
+                                    <p class="rec-description" id="rec-detector-advice" style="font-size: 0.85rem; margin-top: 5px;">
+                                        Recommended standard DDA detector to balance scan time and spatial resolution.
+                                    </p>
+                                </div>
+
+                                <!-- Decision Metrics Comparison Matrix -->
+                                <div class="matrix-table-container">
+                                    <table class="matrix-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Machine Option</th>
+                                                <th>Penetration</th>
+                                                <th>Sharpness</th>
+                                                <th>Contrast</th>
+                                                <th>Defect Visibility</th>
+                                                <th>Overall Match</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rec-matrix-body">
+                                            <tr>
+                                                <td class="font-bold">450 keV X-Ray</td>
+                                                <td><span class="badge badge-error">0%</span></td>
+                                                <td><span class="badge badge-success">92%</span></td>
+                                                <td><span class="badge badge-success">85%</span></td>
+                                                <td><span class="badge badge-error">10%</span></td>
+                                                <td class="font-mono">23%</td>
+                                            </tr>
+                                            <tr class="highlighted-row">
+                                                <td class="font-bold">6 MeV LINAC</td>
+                                                <td><span class="badge badge-success">100%</span></td>
+                                                <td><span class="badge badge-warning">78%</span></td>
+                                                <td><span class="badge badge-warning">45%</span></td>
+                                                <td><span class="badge badge-success">82%</span></td>
+                                                <td class="font-mono text-cyan font-bold">81%</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="font-bold">9 MeV LINAC</td>
+                                                <td><span class="badge badge-success">100%</span></td>
+                                                <td><span class="badge badge-warning">64%</span></td>
+                                                <td><span class="badge badge-error">28%</span></td>
+                                                <td><span class="badge badge-warning">68%</span></td>
+                                                <td class="font-mono">72%</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Radar chart comparing scores -->
+                                <div class="chart-container" style="position: relative; height: 180px; width: 100%;">
+                                    <canvas id="radarChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Module 3: Dynamic Exposure Chart Generator -->
+                <section id="tab-exposure" class="tab-panel">
+                    <div class="grid grid-3">
+                        <!-- Attenuation Plots -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="chart-spline"></i>
+                                <h2>Transmission Curve (Beer-Lambert vs. Broad Beam)</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height: 350px;">
+                                    <canvas id="transmissionChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Exposure Chart -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="chart-line"></i>
+                                <h2>NDT Exposure Chart (Time vs. Thickness)</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height: 350px;">
+                                    <canvas id="exposureChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scattering Image Components (2D Screen View) -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="split"></i>
+                                <h2>Scattering Image Profile (2D Beam Components)</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="exp-scatter-canvases">
+                                    <div class="exp-scatter-box" style="width: 140px;">
+                                        <span style="display: flex; justify-content: space-between; width: 100%; font-size: 0.68rem; font-family: var(--font-orbitron); color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                                            <span>Primary</span>
+                                            <span class="text-cyan font-mono" id="exp-pct-primary">0.0%</span>
+                                        </span>
+                                        <div class="film-container">
+                                            <canvas id="canvas-exp-primary" width="140" height="105" class="exp-scatter-canvas"></canvas>
+                                            <div class="canvas-overlay-badge badge-cyan-text" id="overlay-exp-pct-primary">0.0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="exp-scatter-box" style="width: 140px;">
+                                        <span style="display: flex; justify-content: space-between; width: 100%; font-size: 0.68rem; font-family: var(--font-orbitron); color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                                            <span>Compton</span>
+                                            <span class="text-yellow font-mono" id="exp-pct-compton">0.0%</span>
+                                        </span>
+                                        <div class="film-container">
+                                            <canvas id="canvas-exp-compton" width="140" height="105" class="exp-scatter-canvas"></canvas>
+                                            <div class="canvas-overlay-badge badge-warning-text" id="overlay-exp-pct-compton">0.0%</div>
+                                        </div>
+                                    </div>
+                                    <div class="exp-scatter-box" style="width: 140px;">
+                                        <span style="display: flex; justify-content: space-between; width: 100%; font-size: 0.68rem; font-family: var(--font-orbitron); color: var(--text-muted); text-transform: uppercase; font-weight: 600;">
+                                            <span>Rayleigh</span>
+                                            <span class="text-yellow font-mono" id="exp-pct-rayleigh">0.0%</span>
+                                        </span>
+                                        <div class="film-container">
+                                            <canvas id="canvas-exp-rayleigh" width="140" height="105" class="exp-scatter-canvas"></canvas>
+                                            <div class="canvas-overlay-badge badge-warning-text" id="overlay-exp-pct-rayleigh">0.0%</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistics Bar -->
+                    <div class="statistics-card-bar">
+                        <div class="stat-box">
+                            <div class="stat-lbl">Linear Attenuation (μ)</div>
+                            <div class="stat-val" id="stat-mu">0.126 cm⁻¹</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-lbl">Half-Value Layer (HVL)</div>
+                            <div class="stat-val text-cyan" id="stat-hvl">55.0 mm</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-lbl">Tenth-Value Layer (TVL)</div>
+                            <div class="stat-val text-orange" id="stat-tvl">182.6 mm</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-lbl">Scatter Buildup Factor (B)</div>
+                            <div class="stat-val text-green" id="stat-buildup">2.45</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-lbl">Geometric Unsharpness (Ug)</div>
+                            <div class="stat-val" id="stat-ug">0.42 mm</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Module 4: Synthetic Radiograph Simulator -->
+                <section id="tab-simulator" class="tab-panel">
+                    <div class="grid grid-1-2">
+                        <!-- Left Panel: Geometry, Collimator and Defect Placement Controls -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="settings-2"></i>
+                                <h2>Geometry & Target Defects</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="geometry-select">Component Geometry / Mesh</label>
+                                    <select id="geometry-select" class="form-control">
+                                        <option value="srm_cylinder">Concentric SRM Cylinder (Default)</option>
+                                        <optgroup label="3D Mesh Presets">
+                                            <option value="preset_step_wedge">Calibration Step Wedge (Steel)</option>
+                                            <option value="preset_welded_pipe">Thin-Walled Welded Pipe</option>
+                                            <option value="preset_flanged_coupler">Flanged Shaft Coupler</option>
+                                        </optgroup>
+                                        <optgroup label="Uploaded STL Files" id="uploaded-stl-group" disabled>
+                                            <option value="" style="font-style: italic;">No custom STLs loaded</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+
+                                <div class="form-group" id="srm-bore-subpanel">
+                                    <label for="boreType">Central Cavity Core Shape</label>
+                                    <select id="boreType" class="form-control">
+                                        <option value="star">Star-shaped Cavity Grain (Typical SRM)</option>
+                                        <option value="cylindrical">Cylindrical Cavity Grain</option>
+                                    </select>
+                                </div>
+
+                               <div class="form-group">
+
+                                    <label>STL Component Type</label>
+
+                                    <select id="componentType" class="form-control">
+                                        <option value="motorcase">Motor Case</option>
+                                        <option value="insulation">Insulation</option>
+                                        <option value="propellant">Propellant</option>
+                                        <option value="inhibition">Inhibition Layer</option>
+                                        <option value="void">Void Region</option>
+                                    </select>
+
+                                </div>
+
+                                <div class="form-group">
+
+                                    <label class="btn btn-secondary btn-block"
+                                           style="display:flex;
+                                                  align-items:center;
+                                                  justify-content:center;
+                                                  gap:8px;
+                                                  cursor:pointer;
+                                                  margin-top:10px;">
+
+                                        <i data-lucide="upload-cloud"></i>
+                                        Upload STL
+
+                                        <input
+                                            type="file"
+                                            id="stlUpload"
+                                            multiple
+                                            webkitdirectory
+                                            directory
+                                        >
+                                    </label>
+
+                                    <div id="stl-upload-status"
+                                         class="text-muted"
+                                         style="font-size:0.75rem;
+                                                text-align:center;
+                                                margin-top:6px;">
+
+                                        No STL files loaded
+
+                                    </div>
+
+                                </div>
+
+                                <div class="divider"></div>
+                                <div class="card-subtitle-box">Material & Exposure Properties</div>
+                                
+                                <div class="form-group">
+                                    <label for="sim-materialType">Inspected Object Material</label>
+                                    <select id="sim-materialType" class="form-control">
+                                        <option value="propellant">HTPB Propellant Preset (ρ=1.75, Z=7.4)</option>
+                                        <option value="steel">Carbon Steel Casing Preset (ρ=7.85, Z=26)</option>
+                                        <option value="aluminum">Aluminum Shell Preset (ρ=2.7, Z=13)</option>
+                                        <option value="cfrp">CFRP Composite Casing Preset (ρ=1.6, Z=6)</option>
+                                        <option value="lead">Lead Shielding Preset (ρ=11.34, Z=82)</option>
+                                        <option value="titanium">Titanium(ρ=4.51, Z=22)</option>
+                                        <option value="copper">Copper(ρ=8.96, Z=29)</option>
+                                        <option value="stainless">Stainless Steel(ρ= 7.95, Z=26)</option>
+                                        <option value="magnesium">Magnesium(ρ= 1.74, Z=12)</option>
+                                        <option value="brass">Brass(ρ=8.5, Z=30)</option>
+                                    </select>
+                                </div>
+
+                                <div class="form-group">
+                                    <div class="label-with-value">
+                                        <label for="sim-thickness">Material Thickness (mm)</label>
+                                        <input type="number" class="badge-value font-mono" id="sim-val-thickness" min="1" max="1000" value="150">
+                                    </div>
+                                    <input type="range" id="sim-thickness" min="1" max="1000" value="150" class="slider">
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Photon Energy Level</label>
+                                    <div style="display: flex; gap: 10px; margin-top: 5px;" id="sim-energy-container">
+                                        <label class="btn-toggle-label sim-energy-lbl" style="flex: 1; text-align: center; font-size: 0.85rem; padding: 6px; cursor: pointer; display: block; border-radius: 4px;">
+                                            <input type="radio" name="sim-energy" value="450keV" style="display: none;">
+                                            450 keV
+                                        </label>
+                                        <label class="btn-toggle-label active sim-energy-lbl" style="flex: 1; text-align: center; font-size: 0.85rem; padding: 6px; cursor: pointer; display: block; border-radius: 4px;">
+                                            <input type="radio" name="sim-energy" value="6MeV" checked style="display: none;">
+                                            6 MeV
+                                        </label>
+                                        <label class="btn-toggle-label sim-energy-lbl" style="flex: 1; text-align: center; font-size: 0.85rem; padding: 6px; cursor: pointer; display: block; border-radius: 4px;">
+                                            <input type="radio" name="sim-energy" value="9MeV" style="display: none;">
+                                            9 MeV
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="divider"></div>
+
+                                <div class="form-group">
+                                    <div class="flex items-center justify-between">
+                                        <label for="defectActive" class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" id="defectActive" checked class="form-checkbox">
+                                            <span>Simulate Target Defect</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="defect-subpanel">
+                                    <div class="form-group">
+                                        <label for="defectType">Defect Typology</label>
+                                        <select id="defectType" class="form-control">
+                                            <option value="crack">HTPB Propellant Radial Crack (Gas Gap)</option>
+                                            <option value="void">Gas Bubble / Porosity (Spherical Void)</option>
+                                            <option value="delamination">Propellant-EPDM Liner Debonding</option>
+                                            <option value="inclusion">High-density Inclusion (Tungsten Slag)</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="form-row">
+                                         <div class="form-group flex-1">
+                                             <div class="label-with-value">
+                                                 <label for="defectX">Radial Offset X (mm)</label>
+                                                 <input type="number" class="badge-value font-mono" id="val-defectX" min="-70" max="70" value="0">
+                                             </div>
+                                             <input type="range" id="defectX" min="-70" max="70" value="0" class="slider">
+                                         </div>
+                                         <div class="form-group flex-1">
+                                             <div class="label-with-value">
+                                                 <label for="defectY">Depth Offset Y (mm)</label>
+                                                 <input type="number" class="badge-value font-mono" id="val-defectY" min="-70" max="70" value="45">
+                                             </div>
+                                             <input type="range" id="defectY" min="-70" max="70" value="45" class="slider">
+                                         </div>
+                                     </div>
+
+                                     <div class="form-row">
+                                         <div class="form-group flex-1">
+                                             <div class="label-with-value">
+                                                 <label for="defectRx">Width Rx (mm)</label>
+                                                 <input type="number" class="badge-value font-mono" id="val-defectRx" min="1" max="15" value="4">
+                                             </div>
+                                             <input type="range" id="defectRx" min="1" max="15" value="4" class="slider">
+                                         </div>
+                                         <div class="form-group flex-1">
+                                             <div class="label-with-value">
+                                                 <label for="defectRy">Height Ry (mm)</label>
+                                                 <input type="number" class="badge-value font-mono" id="val-defectRy" min="1" max="25" value="12">
+                                             </div>
+                                             <input type="range" id="defectRy" min="1" max="25" value="12" class="slider">
+                                         </div>
+                                     </div>
+
+                                    <div class="form-group">
+                                        <div class="label-with-value">
+                                            <label for="defectAngle">Orientation Angle (deg)</label>
+                                            <input type="number" class="badge-value font-mono" id="val-defectAngle" min="-90" max="90" value="15">
+                                        </div>
+                                        <input type="range" id="defectAngle" min="-90" max="90" value="15" class="slider">
+                                    </div>
+                                </div>
+
+                                <div class="divider"></div>
+
+                                <!-- Histogram/D-max and Grey level settings -->
+                                <div class="card-subtitle-box">Radiographic Contrast Windowing</div>
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <div class="label-with-value">
+                                            <label for="windowCenter">Window Center (Brightness)</label>
+                                            <input type="number" class="badge-value font-mono" id="val-windowCenter" min="0.01" max="1.5" step="0.05" value="0.5">
+                                        </div>
+                                        <input type="range" id="windowCenter" min="0.01" max="1.5" step="0.05" value="0.5" class="slider">
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <div class="label-with-value">
+                                            <label for="windowWidth">Window Width (Contrast)</label>
+                                            <input type="number" class="badge-value font-mono" id="val-windowWidth" min="0.05" max="2.0" step="0.05" value="0.8">
+                                        </div>
+                                        <input type="range" id="windowWidth" min="0.05" max="2.0" step="0.05" value="0.8" class="slider">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Core Simulator Displays -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="binary"></i>
+                                <h2>Solid Rocket Motor Cross-Section Schematic & Synthetic Radiograph</h2>
+                            </div>
+                            <div class="card-body grid grid-2">
+                                <div class="view-panel">
+                                    <div class="view-title">Solid Rocket Motor Monte Carlo Slice & Path Analysis</div>
+                                    <canvas id="srmSchematic" width="320" height="320" class="sim-canvas"></canvas>
+                                    <div class="view-footer text-center">Interactive Schematic: Drag defect to move</div>
+                                </div>
+
+                                <div class="view-panel">
+                                    <div class="view-title">2D Projected Digital Radiograph (As Reaching Detector)</div>
+                                    <canvas id="srmRadiograph" width="320" height="240" class="sim-canvas film-glow"></canvas>
+                                    <div class="view-footer text-center" id="sim-stats-readout">Exposure: 120s @ 6 MeV (Linac)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Module 5: Ravana View (Hierarchical Component Viewer) -->
+                <section id="tab-ravana" class="tab-panel">
+                    <div class="ravana-container">
+                        <!-- Toggle Button Header -->
+                        <div class="ravana-controls">
+                            <div class="info-block">
+                                <h3>Ravana View (10-Component Decomposition Matrix)</h3>
+                                <p>Radiography represents the summation of multiple physical photon transport processes. Click the collapsed film to expand into its component heads.</p>
+                            </div>
+                            <button class="btn btn-primary" id="btn-toggle-ravana">
+                                <i data-lucide="fullscreen"></i> Expand Component Grid
+                            </button>
+                        </div>
+
+                        <!-- The collapsed main film view -->
+                        <div id="ravana-collapsed-view" class="ravana-collapsed-card">
+                            <div class="main-film-frame">
+                                <canvas id="ravana-main-canvas" width="640" height="480" class="large-film"></canvas>
+                                <div class="crosshair-hud">
+                                    <div class="corner tl"></div><div class="corner tr"></div>
+                                    <div class="corner bl"></div><div class="corner br"></div>
+                                    <div class="interactive-hud-readout" id="hud-readout">
+                                        Hover over canvas to view component breakdown...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- The expanded grid view -->
+                        <div id="ravana-expanded-view" class="ravana-expanded-grid hidden">
+                            <!-- 1. Final Combined Radiograph -->
+                            <div class="grid-subcard" style="border: 1px solid var(--accent-cyan); background-color: rgba(0, 240, 255, 0.02);">
+                                <div class="subcard-header" style="color: var(--accent-cyan); font-weight: bold;">
+                                    <span>Final Combined Radiograph</span>
+                                    <span class="badge badge-cyan">100%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-final" width="320" height="240" class="sub-film film-glow"></canvas>
+                                    <div class="canvas-overlay-badge badge-cyan-text" id="overlay-pct-final">100%</div>
+                                </div>
+                                <div class="subcard-footer" style="color: var(--accent-cyan);">Sum of all layers + noise & blur</div>
+                            </div>
+                            <!-- 2. SRM Cross-Section Geometry -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>SRM Cross-Section Geometry</span>
+                                    <span class="badge badge-secondary">Ref</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-schematic" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-secondary-text" id="overlay-pct-schematic">Ref</div>
+                                </div>
+                                <div class="subcard-footer">Active 2D slice reference</div>
+                            </div>
+                            <!-- 3. Primary Beam -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Primary Beam</span>
+                                    <span class="badge badge-cyan" id="header-pct-primary">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-primary" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-cyan-text" id="overlay-pct-primary">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-primary">I_0 · exp(-Σ μ_i · x_i)</div>
+                            </div>
+                            <!-- 4. Compton Scatter -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Compton Scatter</span>
+                                    <span class="badge badge-warning" id="header-pct-compton">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-compton" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-warning-text" id="overlay-pct-compton">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-compton">Dominant scatter component at MV</div>
+                            </div>
+                            <!-- 5. Rayleigh Scatter -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Rayleigh Scatter</span>
+                                    <span class="badge badge-warning" id="header-pct-rayleigh">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-rayleigh" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-warning-text" id="overlay-pct-rayleigh">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-rayleigh">Active primarily at kV energies</div>
+                            </div>
+                            <!-- 6. Forward Scatter -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Forward Scatter</span>
+                                    <span class="badge badge-warning" id="header-pct-forward">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-forward" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-warning-text" id="overlay-pct-forward">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-forward">Concentrated edge build-up</div>
+                            </div>
+                            <!-- 7. Backscatter -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Backscatter</span>
+                                    <span class="badge badge-warning" id="header-pct-backscatter">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-backscatter" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-warning-text" id="overlay-pct-backscatter">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-backscatter">Flooring background offset</div>
+                            </div>
+                            <!-- 8. Lateral Scatter -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Lateral Scatter</span>
+                                    <span class="badge badge-warning" id="header-pct-lateral">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-lateral" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-warning-text" id="overlay-pct-lateral">0.0%</div>
+                                </div>
+                                <div class="subcard-footer" id="footer-lateral">Horizontal secondary scattering</div>
+                            </div>
+                            <!-- 9. Photoelectric Loss -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Photoelectric Loss</span>
+                                    <span class="badge badge-error" id="header-pct-photoelectric">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-photoelectric" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-error-text" id="overlay-pct-photoelectric">Loss: 0.0%</div>
+                                </div>
+                                <div class="subcard-footer">Z^4-5 absorption channel</div>
+                            </div>
+                            <!-- 10. Pair Production Loss -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Pair Prod Loss</span>
+                                    <span class="badge badge-error" id="header-pct-pairprod">0.0%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-pairprod" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-error-text" id="overlay-pct-pairprod">Loss: 0.0%</div>
+                                </div>
+                                <div class="subcard-footer">Active above 1.02 MeV</div>
+                            </div>
+                            <!-- 11. Detector Noise -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Detector Noise</span>
+                                    <span class="badge badge-secondary" id="header-pct-noise">±1.2%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-noise" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-secondary-text" id="overlay-pct-noise">±1.2%</div>
+                                </div>
+                                <div class="subcard-footer">Shot noise & dark current</div>
+                            </div>
+                            <!-- 12. Detector Blur -->
+                            <div class="grid-subcard">
+                                <div class="subcard-header">
+                                    <span>Detector Blur</span>
+                                    <span class="badge badge-secondary" id="header-pct-blur">-2.1%</span>
+                                </div>
+                                <div class="film-container">
+                                    <canvas id="c-blur" width="320" height="240" class="sub-film"></canvas>
+                                    <div class="canvas-overlay-badge badge-secondary-text" id="overlay-pct-blur">-2.1%</div>
+                                </div>
+                                <div class="subcard-footer">Pixel pitch & screen unsharpness</div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Module 6: Energy Comparison Dashboard -->
+                <section id="tab-comparison" class="tab-panel">
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i data-lucide="sliders-horizontal"></i>
+                                <h2>Multi-Energy Simulation Sweep (450 keV vs. 6 MeV vs. 9 MeV)</h2>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <label for="comparison-layer-select" style="margin-bottom: 0; font-size: 0.85rem; color: var(--text-muted); white-space: nowrap;">Compare Layer:</label>
+                                <select id="comparison-layer-select" class="form-control" style="width: 200px; padding: 4px 8px; font-size: 0.85rem; height: auto; background-color: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px;">
+                                    <option value="final">Final Combined Radiograph</option>
+                                    <option value="primary">Primary Beam</option>
+                                    <option value="compton">Compton Scatter</option>
+                                    <option value="rayleigh">Rayleigh Scatter</option>
+                                    <option value="forward">Forward Scatter</option>
+                                    <option value="backscatter">Backscatter</option>
+                                    <option value="lateral">Lateral Scatter</option>
+                                    <option value="photoelectric">Photoelectric Loss</option>
+                                    <option value="pairprod">Pair Production Loss</option>
+                                    <option value="noise">Detector Noise</option>
+                                    <option value="blur">Detector Blur</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="comparison-grid">
+                                <!-- 450 keV Column -->
+                                <div class="comp-col">
+                                    <div class="comp-header text-yellow">450 keV X-Ray Source</div>
+                                    <canvas id="comp-canvas-450" width="320" height="240" class="sim-canvas film-glow"></canvas>
+                                    <div class="metrics-list" id="metrics-450">
+                                        <div class="met-row"><span class="met-lbl">Penetration:</span><span class="met-val badge badge-error">Underexposed</span></div>
+                                        <div class="met-row"><span class="met-lbl">Contrast:</span><span class="met-val">Low (Saturated)</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SPR:</span><span class="met-val">--</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SNR:</span><span class="met-val">--</span></div>
+                                        <div class="met-row"><span class="met-lbl">Defect Visibility:</span><span class="met-val badge badge-error">Invisible</span></div>
+                                    </div>
+                                </div>
+
+                                <!-- 6 MeV Column -->
+                                <div class="comp-col highlight-col">
+                                    <div class="comp-header text-cyan">6 MeV LINAC (Recommended)</div>
+                                    <canvas id="comp-canvas-6m" width="320" height="240" class="sim-canvas film-glow"></canvas>
+                                    <div class="metrics-list" id="metrics-6m">
+                                        <div class="met-row"><span class="met-lbl">Penetration:</span><span class="met-val badge badge-success">Adequate</span></div>
+                                        <div class="met-row"><span class="met-lbl">Contrast:</span><span class="met-val">42% (Optimal)</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SPR:</span><span class="met-val">2.45</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SNR:</span><span class="met-val">58 dB</span></div>
+                                        <div class="met-row"><span class="met-lbl">Defect Visibility:</span><span class="met-val badge badge-success">High</span></div>
+                                    </div>
+                                </div>
+
+                                <!-- 9 MeV Column -->
+                                <div class="comp-col">
+                                    <div class="comp-header text-orange">9 MeV LINAC Source</div>
+                                    <canvas id="comp-canvas-9m" width="320" height="240" class="sim-canvas film-glow"></canvas>
+                                    <div class="metrics-list" id="metrics-9m">
+                                        <div class="met-row"><span class="met-lbl">Penetration:</span><span class="met-val badge badge-success">Excessive</span></div>
+                                        <div class="met-row"><span class="met-lbl">Contrast:</span><span class="met-val">28% (Flattened)</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SPR:</span><span class="met-val">3.68</span></div>
+                                        <div class="met-row"><span class="met-lbl">Avg SNR:</span><span class="met-val">44 dB</span></div>
+                                        <div class="met-row"><span class="met-lbl">Defect Visibility:</span><span class="met-val badge badge-warning">Moderate</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Module 7: Project Database -->
+                <section id="tab-database" class="tab-panel">
+                    <div class="grid grid-2-1">
+                        <!-- Database Table -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="database-backup"></i>
+                                <h2>Stored Radiographic Inspection Runs</h2>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-container">
+                                    <table class="db-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Run Name</th>
+                                                <th>Timestamp</th>
+                                                <th>Material & Thickness</th>
+                                                <th>Machine Rec.</th>
+                                                <th>Defect Status</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="db-runs-list">
+                                            <!-- Dyn loaded -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ADR ML Training Data Export Box -->
+                        <div class="card">
+                            <div class="card-header">
+                                <i data-lucide="box"></i>
+                                <h2>ADR training data export console</h2>
+                            </div>
+                            <div class="card-body flex-col justify-between" style="min-height: 350px;">
+                                <div class="export-guide">
+                                    <h3>Automated Defect Recognition (ADR) Data Packaging</h3>
+                                    <p>Select a simulation run from the database. You can export a packaged training dataset including:</p>
+                                    <ul>
+                                        <li>Inspection parameters configuration</li>
+                                        <li>12-bit normalized detector grayscale matrices (Raw Float Array)</li>
+                                        <li>Target defect binary coordinates mask (Pixel-level ground truth labelling for CNN segmentations)</li>
+                                    </ul>
+                                </div>
+                                <div class="form-group" style="margin-top: 15px;">
+                                    <label for="adr-selected-run">Selected Run for Export</label>
+                                    <select id="adr-selected-run" class="form-control">
+                                        <option value="">-- No Run Selected --</option>
+                                    </select>
+                                </div>
+                                <button class="btn btn-primary btn-block" id="btn-export-adr" style="margin-top: 15px;">
+                                    <i data-lucide="download-cloud"></i> Generate & Download ADR Data (.json)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Save Simulation Run Modal -->
+    <div id="save-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Save Current Simulation</h2>
+                <button class="btn-close" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="run-save-name">Simulation Run Title</label>
+                    <input type="text" id="run-save-name" class="form-control" placeholder="e.g. 150mm Propellant Void Scan">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btn-cancel-save">Cancel</button>
+                <button class="btn btn-primary" id="btn-confirm-save">Save Run</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core App Scripts -->
+    <script src="physics.js"></script>
+    <script src="simulator.js"></script>
+    <script src="db.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
